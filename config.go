@@ -26,37 +26,33 @@ func newMapper(strict bool) *mapper {
 	return &mapper{strict: strict}
 }
 
-/* pointer only
-pointer 指向的值必须是一个结构体
+/* dest 必须是一个指向结构体的指针
 
 type Config struct{}
-
 var config *Config (config 是一个空指针）
 m.Parse(config) 传的是这个指针的值，也就是一个 nil，无法操作
 m.parse(&config) 传的是这个指向 *config 的指针，通过 reflect 可以设置这个指针指向的 *config 的值
 
-	   		    检查入参
-				   ｜ \
-	   			 结构体 其他 --> error
-	    	       ｜
-	   -------> 分解结构体
-	  ｜		   ｜
-	  ｜	   遍历每个字段
-	  ｜		   ｜
-	  ｜		   ｜
-	  ｜		是否可导出  ---No--> 跳过
-	  ｜		   ｜
-	  ｜		 是否忽略  ---Yes--> 跳过
-	  ｜		   ｜
-	  ｜		 检查值
-	  ｜		   ｜
-	  ｜		 设置值 <---------------
-	  ｜		   ｜				   ｜
-	  ｜		 /   \		 		   ｜
-	  ｜     结构体    指针 ---behind()---
-	  ｜	 /
-	   -----
-
+                 检查入参
+                   ｜ \
+                 结构体 其他 --> error
+                   ｜
+       -------> 分解结构体
+      ｜		   ｜
+      ｜	   遍历每个字段
+      ｜		   ｜
+      ｜		是否可导出  ---No--> 跳过
+      ｜		   ｜
+      ｜		 是否忽略  ---Yes--> 跳过
+      ｜		   ｜
+      ｜		 检查值
+      ｜		   ｜
+      ｜		 设置值 <----------------
+      ｜		   ｜					｜
+      ｜		 /   \					｜
+      ｜     结构体    指针 ---behind()---
+      ｜	 /
+       -----
 */
 func (m *mapper) Parse(dest interface{}) error {
 	v := reflect.ValueOf(dest)
