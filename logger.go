@@ -35,7 +35,6 @@ func InitLogger(debug bool) {
 	zerolog.TimeFieldFormat = time.RFC3339
 	//zerolog.SetGlobalLevel(level)
 	log = zerolog.New(output).With().Caller().Timestamp().Logger().Level(level)
-	fmt.Println(log.GetLevel())
 }
 
 // GetLogger 获取 log 实例，如果 log 为空，则初始化一个 log 实例

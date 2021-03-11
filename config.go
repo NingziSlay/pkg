@@ -1,138 +1,129 @@
 package components
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
-const tagName = "env"
-
-// MapConfig 给所有可导出字段赋值
 func MapConfig(dest interface{}) error {
-	m := &mapper{strict: false}
-	return m.mapConfig(reflect.TypeOf(dest), reflect.ValueOf(dest))
+	return newMapper(false).Parse(dest)
 }
 
-// MustMapConfig 所有可导出字段都必须赋值
-// 每个可导出字段的值都不能为空，整个 mapping 过程中有 err 立即返回
 func MustMapConfig(dest interface{}) error {
-	m := &mapper{strict: true}
-	return m.mapConfig(reflect.TypeOf(dest), reflect.ValueOf(dest))
-}
-
-type fieldTag struct {
-	FieldName string
-	Index     []int
-	EnvName   string
-	Default   string
-	Value     string
-}
-
-// newTag 从 filed 中读取 env 标签的值，并从环境变量中读取，返回 *fieldTag
-//
-// 如果 tag 为空，只是 field name 的全大写
-// 通过 "," 分割 tag 值，只分割第一个 ","，分割后的第二个值为字段的默认值
-// 如果从环境变量中没有到对应的值，使用默认值代替
-func newTag(field reflect.StructField) (t *fieldTag) {
-	t = &fieldTag{
-		FieldName: field.Name,
-		Index:     field.Index,
-	}
-	tag := field.Tag.Get(tagName)
-	if tag == "" {
-		t.EnvName = strings.ToUpper(t.FieldName)
-		return
-	}
-	tags := strings.SplitN(tag, ",", 2)
-	t.EnvName = tags[0]
-	if len(tags) > 1 {
-		t.Default = tags[1]
-	}
-	t.Value = os.Getenv(t.EnvName)
-	if t.Value == "" {
-		t.Value = t.Default
-	}
-	t.Value = strings.Trim(t.Value, " ")
-	return
+	return newMapper(true).Parse(dest)
 }
 
 type mapper struct {
 	strict bool
 }
 
-func (m *mapper) mapConfig(t reflect.Type, v reflect.Value) error {
-	switch t.Kind() {
-	case reflect.Ptr:
-		// mapConfig 指针指向的值
-		return m.mapConfig(t.Elem(), v.Elem())
-	case reflect.Struct:
-		for i := 0; i < t.NumField(); i++ {
-			fieldType := t.Field(i)
-			// 跳过非导出字段
-			if fieldType.PkgPath != "" {
-				continue
-			}
-			// 嵌入结构体处理
-			if fieldType.Anonymous {
-				if err := m.mapConfig(fieldType.Type, v.Field(i)); err != nil {
-					return err
-				}
-				continue
-			}
-			// 处理标签
-			tag := newTag(fieldType)
-			if err := m.checkEmptyTag(tag, fieldType); err != nil {
-				return err
-			}
-			fieldValue := v.FieldByIndex(tag.Index)
-			// fieldValue 应该可寻址，可导出
-			if !fieldValue.CanSet() {
-				return ErrorNotWriteable
-			}
-			if err := m.setFieldValue(fieldValue, tag.Value); err != nil {
+func newMapper(strict bool) *mapper {
+	return &mapper{strict: strict}
+}
+
+/* pointer only
+pointer 指向的值必须是一个结构体
+
+type Config struct{}
+
+var config *Config (config 是一个空指针）
+m.Parse(config) 传的是这个指针的值，也就是一个 nil，无法操作
+m.parse(&config) 传的是这个指向 *config 的指针，通过 reflect 可以设置这个指针指向的 *config 的值
+
+	   		    检查入参
+				   ｜ \
+	   			 结构体 其他 --> error
+	    	       ｜
+	   -------> 分解结构体
+	  ｜		   ｜
+	  ｜	   遍历每个字段
+	  ｜		   ｜
+	  ｜		   ｜
+	  ｜		是否可导出  ---No--> 跳过
+	  ｜		   ｜
+	  ｜		 是否忽略  ---Yes--> 跳过
+	  ｜		   ｜
+	  ｜		 检查值
+	  ｜		   ｜
+	  ｜		 设置值 <---------------
+	  ｜		   ｜				   ｜
+	  ｜		 /   \		 		   ｜
+	  ｜     结构体    指针 ---behind()---
+	  ｜	 /
+	   -----
+
+*/
+func (m *mapper) Parse(dest interface{}) error {
+	v := reflect.ValueOf(dest)
+	if v.Kind() != reflect.Ptr {
+		return fmt.Errorf("parse of non-pointer %v", reflect.TypeOf(dest))
+	}
+	if v.IsNil() {
+		return fmt.Errorf("parse of nil %s", reflect.TypeOf(dest))
+	}
+	v = behind(v)
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("parse of non-struct %v", v.Kind())
+	}
+	return m.parse(v)
+}
+
+// behind 返回 v 指针指向的最终值，如果 v 本身就是一个指针，就直接返回 v 自身
+func behind(v reflect.Value) reflect.Value {
+	if v.Kind() != reflect.Ptr {
+		return v
+	}
+	// 如果 v 是 nil，使用 reflect 为 v 创建一个值
+	if v.IsNil() {
+		v.Set(reflect.New(v.Type().Elem()))
+	}
+
+	return behind(reflect.Indirect(v))
+}
+
+// parse 结构体内的字段处理
+func (m *mapper) parse(v reflect.Value) error {
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		ft := t.Field(i)
+		fv := v.Field(i)
+
+		data := getData(ft)
+		// 标签为 "-" 或非导出字段
+		if data.shouldSkip() {
+			continue
+		}
+
+		// 如果字段的 env 值为空，判断是否是结构体，如果是结构体则忽略，否则根据 strict 判断是否返回错误
+		if !data.isValid() {
+			if behind(fv).Kind() != reflect.Struct {
 				if m.strict {
-					return err
+					return fmt.Errorf("missing value of %s.%s", t.String(), ft.Name)
 				}
 				continue
 			}
 		}
-	default:
-		return ErrorUnsupportedType(t.String())
-	}
-	return nil
-}
-
-// checkEmptyTag 在严格模式下 tag 的值不允许为空，但是需要忽略 struct 和底层
-// 类型指向一个 struct 的 ptr
-func (m *mapper) checkEmptyTag(tag *fieldTag, fieldType reflect.StructField) error {
-	if m.strict && tag.Value == "" {
-		switch fieldType.Type.Kind() {
-		case reflect.Struct:
-			return nil
-		case reflect.Ptr:
-			if fieldType.Type.Elem().Kind() == reflect.Struct {
-				return nil
-			}
-			return ErrorEmptyEnviron
-		default:
-			return ErrorEmptyEnviron
+		if err := m.setFieldValue(fv, data.val); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 // setFieldValue 给结构体字段赋值
-// 如果 v 不可寻址或是不可导出字段（字段首字母小写），返回 ErrorNotWriteable 错误
+// 如果 v 不可寻址或是不可导出字段（字段首字母小写），返回 ErrorNotWritable 错误
 // 给结构体赋值需要转换为对应类型，如果类型转换错误，返回相应的错误
 func (m *mapper) setFieldValue(v reflect.Value, value string) error {
 	switch v.Kind() {
 	default:
 		return ErrorUnsupportedType(v.String())
 	case reflect.String:
-		v.SetString(strings.Trim(value, " "))
+		v.SetString(value)
 	case reflect.Int8:
 		return m.setInt8(v, value)
 	case reflect.Int16:
@@ -318,20 +309,80 @@ func (m *mapper) setArray(v reflect.Value, value string) error {
 
 // setPtr 设置 ptr 类型
 func (m *mapper) setPtr(v reflect.Value, value string) error {
-	var s reflect.Value
-	s = reflect.New(v.Type().Elem())
-	if err := m.setFieldValue(s.Elem(), value); err != nil {
-		return errors.Wrap(err, "setPtr")
-	}
-	v.Set(s)
-	return nil
+	v = behind(v)
+	return m.setFieldValue(v, value)
 }
 
 // setStruct 设置 struct 类型
 func (m *mapper) setStruct(v reflect.Value) error {
-	err := m.mapConfig(v.Type(), v)
-	if err != nil {
-		return err
+	return m.parse(v)
+}
+
+const tagName = "env"
+
+type data struct {
+	typ      reflect.StructField // field type
+	key      string              // env key
+	val      string              // env value
+	_default string              // default value, use replace when val is empty
+	skip     bool                // - 则直接跳过
+}
+
+func getData(field reflect.StructField) (t *data) {
+	t = &data{typ: field}
+	// 非导出字段
+	if field.PkgPath != "" {
+		t.skip = true
+		return
 	}
-	return nil
+
+	tag := field.Tag.Get(tagName)
+	// 忽略符
+	if tag == "-" {
+		t.skip = true
+		return
+	}
+
+	// 标签为空，默认使用字段名下划线大写命名作为默认环境变量名
+	if tag == "" {
+		t.key = camelCaseToUnderscoreUpper(field.Name)
+	} else {
+		tags := strings.SplitN(tag, ",", 2)
+		t.key = tags[0]
+		if len(tags) > 1 {
+			t._default = tags[1]
+		}
+	}
+
+	t.val = os.Getenv(t.key)
+	if t.val == "" {
+		t.val = t._default
+	}
+	t.val = strings.Trim(t.val, " ")
+	return t
+}
+
+func (t *data) shouldSkip() bool {
+	return t.skip
+}
+
+func (t *data) isValid() bool {
+	return t.val != ""
+}
+
+// 驼峰单词转下划线单词
+func camelCaseToUnderscoreUpper(s string) string {
+	var output []rune
+	for i, r := range s {
+		if i == 0 {
+			output = append(output, r)
+		} else {
+			if unicode.IsUpper(r) {
+				output = append(output, '_')
+			}
+
+			output = append(output, r)
+		}
+	}
+	return strings.ToUpper(string(output))
 }

@@ -6,96 +6,176 @@ import (
 	"testing"
 )
 
-type sample struct {
-	unexported   int      `env:"UNEXPORTED, 110"` // 非导出字段
-	Int          int      `env:"INT, 1"`
-	Uint         uint     `env:"UINT, 1"`
-	Bool         bool     `env:"BOOL, true"`
-	String       string   `env:"STRING, Mariah Carey"`
-	SliceInt     []int    `env:"SLICE_INT,1,2,3"`
-	SliceString  []string `env:"SLICE_STRING,Fly, Like, A, Bird"`
-	SubStruct    sub
-	SubStructPtr *sub1
-	Embed
-}
-
-func toString(s *sample) string {
-	b, _ := json.Marshal(s)
+func toString(s interface{}) string {
+	b, _ := json.MarshalIndent(s, "", "  ")
 	return string(b)
 }
 
-type Embed struct {
-	Array [2]bool `env:"ARRAY,0,1"`
+type embed struct {
+	Embed []string `env:"EMBED, embed"`
 }
-
+type embed1 struct {
+	Embed1 []string `env:"EMBED1, embed1"`
+}
 type sub struct {
-	SliceString []string `env:"SLICE_STRING_1,We, Belong, Together"`
+	Sub bool `env:"SUB, True"`
 }
-
 type sub1 struct {
-	String string
+	Sub1 [2]bool `env:"SUB1, T,0"`
+}
+type foo struct {
+	a int
+	A int    `env:"A"`
+	B string `env:"B,b"`
+	C []int  `env:"C,1,2,3"`
+	D sub
+	E *sub1
+	F uint `env:"-"`
+	embed1
+	*embed
 }
 
 func TestMustMapConfig(t *testing.T) {
-	type setter func()
 
-	var Setter = func(env, value string) setter {
+	type setter = func()
+
+	var bar = func(key, value string) setter {
 		return func() {
-			_ = os.Setenv(env, value)
+			if err := os.Setenv(key, value); err != nil {
+				t.Logf("failed to set ENV: %s", err)
+			}
 		}
 	}
 
 	cases := []struct {
-		input  *sample
-		expect *sample
-		err    bool
-		fn     []setter
+		in  foo
+		out foo
+		err bool
+		fc  []func()
 	}{
+		// 使用默认值
 		{
-			input:  &sample{},
-			expect: &sample{},
-			err:    true,
-		},
-		{
-			input: &sample{},
-			expect: &sample{
-				unexported:   0,
-				Int:          01,
-				Uint:         1,
-				Bool:         true,
-				String:       "hello world",
-				SliceInt:     []int{1, 2, 3},
-				SliceString:  []string{"Fly", "Like", "A", "Bird"},
-				SubStruct:    sub{SliceString: []string{"We", "Belong", "Together"}},
-				SubStructPtr: &sub1{String: "hello world"},
-				Embed:        Embed{Array: [2]bool{false, true}},
+			in: foo{},
+			fc: []func(){bar("A", "1")},
+			out: foo{
+				a: 0,
+				A: 1,
+				B: "b",
+				C: []int{1, 2, 3},
+				D: sub{
+					Sub: true,
+				},
+				E: &sub1{[2]bool{true, false}},
+				F: 0,
+				embed1: embed1{
+					Embed1: []string{"embed1"},
+				},
+				embed: &embed{
+					Embed: []string{"embed"},
+				},
 			},
 			err: false,
-			fn: []setter{
-				Setter("String", "hello world"),
+		},
+		// 环境变量类型错误
+		{
+			in: foo{},
+			fc: []func(){
+				bar("A", "not int"),
+			},
+			err: true,
+		},
+		{
+			in: foo{},
+			fc: []func(){
+				bar("SUB1", "1,2,3"), // out of range
+			},
+			err: true,
+		},
+		// 设置 tag 为 "-" 的字段的环境变量值
+		{
+			in: foo{},
+			fc: []func(){
+				bar("A", "1"),
+				bar("F", "any thing"), // 应该被忽略
+			},
+			err: false,
+			// 全部默认值
+			out: foo{
+				a: 0,
+				A: 1,
+				B: "b",
+				C: []int{1, 2, 3},
+				D: sub{
+					Sub: true,
+				},
+				E: &sub1{[2]bool{true, false}},
+				F: 0,
+				embed1: embed1{
+					Embed1: []string{"embed1"},
+				},
+				embed: &embed{
+					Embed: []string{"embed"},
+				},
 			},
 		},
+		// foo.A 字段为空
+		{
+			in:  foo{},
+			err: true,
+		},
+		// 读取环境变量替换默认值
+		{
+			in: foo{},
+			fc: []func(){
+				bar("A", "15"),
+				bar("C", "4,5,6"),
+				bar("SUB", "false"),
+				bar("EMBED1", "reset embed1"),
+			},
+			out: foo{
+				a: 0,
+				A: 15,
+				B: "b",
+				C: []int{4, 5, 6},
+				D: sub{
+					Sub: false,
+				},
+				E: &sub1{[2]bool{true, false}},
+				F: 0,
+				embed1: embed1{
+					Embed1: []string{"reset embed1"},
+				},
+				embed: &embed{
+					Embed: []string{"embed"},
+				},
+			},
+			err: false,
+		},
 	}
+
 	for _, c := range cases {
-		for _, f := range c.fn {
+		os.Clearenv()
+		for _, f := range c.fc {
 			f()
 		}
-		err := MustMapConfig(c.input)
+		err := MustMapConfig(&c.in)
 		if c.err {
 			if err == nil {
-				t.Fatal("error should not be nil")
+				t.Fatalf("expect error but got nothing")
 			}
-			//}
-			//} else if !c.err {
-			//	if err != nil {
-			//		t.Logf("error should be nil, got: %s", err)
-			//	}
 		} else {
-			s1 := toString(c.input)
-			s2 := toString(c.expect)
-			if s1 != s2 {
-				t.Fatalf("expect result: %s, got: %s", s2, s1)
+			if err != nil {
+				t.Fatalf("unexpect err: %s", err)
+			}
+			in := toString(c.in)
+			out := toString(c.out)
+			if in != out {
+				t.Fatalf("expect: %s\n got: %s", out, in)
 			}
 		}
 	}
+}
+
+func BenchmarkMustMapConfig(b *testing.B) {
+
 }
