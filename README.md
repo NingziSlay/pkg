@@ -1,6 +1,6 @@
 # components
 
-![example workflow name](https://github.com/NingziSlay/componments/workflows/Test/badge.svg)
+![example workflow name](https://github.com/NingziSlay/components/workflows/Test/badge.svg) ![Coverage](http://gocover.io/_badge/github.com/NingziSlay/components)
 
 ## install
 
