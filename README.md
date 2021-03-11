@@ -1,5 +1,7 @@
 # components
 
+![example workflow name](https://github.com/NingziSlay/componments/workflows/Test/badge.svg)
+
 ## install
 
 ```shell

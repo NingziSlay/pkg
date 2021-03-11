@@ -11,31 +11,30 @@ func toString(s interface{}) string {
 	return string(b)
 }
 
-type embed struct {
-	Embed []string `env:"EMBED, embed"`
-}
-type embed1 struct {
-	Embed1 []string `env:"EMBED1, embed1"`
-}
-type sub struct {
-	Sub bool `env:"SUB, True"`
-}
-type sub1 struct {
-	Sub1 [2]bool `env:"SUB1, T,0"`
-}
-type foo struct {
-	a int
-	A int    `env:"A"`
-	B string `env:"B,b"`
-	C []int  `env:"C,1,2,3"`
-	D sub
-	E *sub1
-	F uint `env:"-"`
-	embed1
-	*embed
-}
-
 func TestMustMapConfig(t *testing.T) {
+	type Embed struct {
+		Embed []string `env:"EMBED, Embed"`
+	}
+	type Embed1 struct {
+		Embed1 []string `env:"EMBED1, Embed1"`
+	}
+	type Sub struct {
+		Sub bool `env:"SUB, True"`
+	}
+	type Sub1 struct {
+		Sub1 [2]bool `env:"SUB1, T,0"`
+	}
+	type Foo struct {
+		a int
+		A int    `env:"A"`
+		B string `env:"B,b"`
+		C []int  `env:"C,1,2,3"`
+		D Sub
+		E *Sub1
+		F uint `env:"-"`
+		Embed1
+		*Embed
+	}
 
 	type setter = func()
 
@@ -48,44 +47,44 @@ func TestMustMapConfig(t *testing.T) {
 	}
 
 	cases := []struct {
-		in  foo
-		out foo
+		in  Foo
+		out Foo
 		err bool
 		fc  []func()
 	}{
 		// 使用默认值
 		{
-			in: foo{},
+			in: Foo{},
 			fc: []func(){bar("A", "1")},
-			out: foo{
+			out: Foo{
 				a: 0,
 				A: 1,
 				B: "b",
 				C: []int{1, 2, 3},
-				D: sub{
+				D: Sub{
 					Sub: true,
 				},
-				E: &sub1{[2]bool{true, false}},
+				E: &Sub1{[2]bool{true, false}},
 				F: 0,
-				embed1: embed1{
-					Embed1: []string{"embed1"},
+				Embed1: Embed1{
+					Embed1: []string{"Embed1"},
 				},
-				embed: &embed{
-					Embed: []string{"embed"},
+				Embed: &Embed{
+					Embed: []string{"Embed"},
 				},
 			},
 			err: false,
 		},
 		// 环境变量类型错误
 		{
-			in: foo{},
+			in: Foo{},
 			fc: []func(){
 				bar("A", "not int"),
 			},
 			err: true,
 		},
 		{
-			in: foo{},
+			in: Foo{},
 			fc: []func(){
 				bar("SUB1", "1,2,3"), // out of range
 			},
@@ -93,60 +92,60 @@ func TestMustMapConfig(t *testing.T) {
 		},
 		// 设置 tag 为 "-" 的字段的环境变量值
 		{
-			in: foo{},
+			in: Foo{},
 			fc: []func(){
 				bar("A", "1"),
 				bar("F", "any thing"), // 应该被忽略
 			},
 			err: false,
 			// 全部默认值
-			out: foo{
+			out: Foo{
 				a: 0,
 				A: 1,
 				B: "b",
 				C: []int{1, 2, 3},
-				D: sub{
+				D: Sub{
 					Sub: true,
 				},
-				E: &sub1{[2]bool{true, false}},
+				E: &Sub1{[2]bool{true, false}},
 				F: 0,
-				embed1: embed1{
-					Embed1: []string{"embed1"},
+				Embed1: Embed1{
+					Embed1: []string{"Embed1"},
 				},
-				embed: &embed{
-					Embed: []string{"embed"},
+				Embed: &Embed{
+					Embed: []string{"Embed"},
 				},
 			},
 		},
-		// foo.A 字段为空
+		// Foo.A 字段为空
 		{
-			in:  foo{},
+			in:  Foo{},
 			err: true,
 		},
 		// 读取环境变量替换默认值
 		{
-			in: foo{},
+			in: Foo{},
 			fc: []func(){
 				bar("A", "15"),
 				bar("C", "4,5,6"),
 				bar("SUB", "false"),
-				bar("EMBED1", "reset embed1"),
+				bar("EMBED1", "reset Embed1"),
 			},
-			out: foo{
+			out: Foo{
 				a: 0,
 				A: 15,
 				B: "b",
 				C: []int{4, 5, 6},
-				D: sub{
+				D: Sub{
 					Sub: false,
 				},
-				E: &sub1{[2]bool{true, false}},
+				E: &Sub1{[2]bool{true, false}},
 				F: 0,
-				embed1: embed1{
-					Embed1: []string{"reset embed1"},
+				Embed1: Embed1{
+					Embed1: []string{"reset Embed1"},
 				},
-				embed: &embed{
-					Embed: []string{"embed"},
+				Embed: &Embed{
+					Embed: []string{"Embed"},
 				},
 			},
 			err: false,
