@@ -5,16 +5,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrorArrayOutOfRange = errors.New("array out of range")
-	ErrorUnsupportedType = func(t string) error { return fmt.Errorf("unsupported type: %s", t) }
-)
-
+// ConfigError mapper 过程中会出现的错误
 type ConfigError struct {
 	msg string
 	err error
 }
 
+// Error error interface
 func (c ConfigError) Error() string {
 	if c.err != nil {
 		return errors.Wrap(c.err, c.msg).Error()
@@ -30,6 +27,7 @@ func wrapE(msg string, err error) ConfigError {
 	return ConfigError{msg: msg, err: err}
 }
 
+// 预定义的一些异常
 var (
 	ErrorNonPointer = newE("parse of non-pointer")
 	ErrorNilInput   = newE("parse of nil")

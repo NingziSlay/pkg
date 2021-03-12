@@ -8,10 +8,20 @@ import (
 	"unicode"
 )
 
+// MapConfig 可以从环境变量读取配置灌入到 dest 中，dest 必须是一个指向结构体的指针，
+// 会解析结构体每个字段，通过结构体标签得到这个字段对应的环境变量名，自动将从环境变量读取
+// 到的字符串值转为 dest 字段对应的类型并为其赋值
+// 如果 dest 为 nil，返回 ErrorNilInput
+// 如果 dest 不是一个指针，返回 ErrorNonPointer
+// 如果 dest 指针指向的值不是一个结构体，返回 ErrorNonStruct
+// 如果环境变量的值转为字段相应类型时发生错误，立即返回相应的错误
+//
+// MapConfig 允许字段值为空
 func MapConfig(dest interface{}) error {
 	return newMapper(false).Parse(dest)
 }
 
+// MustMapConfig 所有可导出字段都不允许为空
 func MustMapConfig(dest interface{}) error {
 	return newMapper(true).Parse(dest)
 }
@@ -113,14 +123,9 @@ func (m *mapper) parse(v reflect.Value) error {
 // 如果 v 不可寻址或是不可导出字段（字段首字母小写），返回 ErrorNotWritable 错误
 // 给结构体赋值需要转换为对应类型，如果类型转换错误，返回相应的错误
 func (m *mapper) setFieldValue(v reflect.Value, value string) error {
-	// interface
-	// if v. time.TIme{
-	// 处理 time.Time
-	//	}
-
 	switch v.Kind() {
 	default:
-		return ErrorUnsupportedType(v.String())
+		return newE("unsupported type: %s", v.String())
 	case reflect.String:
 		v.SetString(value)
 	case reflect.Int8:
@@ -295,7 +300,7 @@ func (m *mapper) setSlice(v reflect.Value, value string) error {
 func (m *mapper) setArray(v reflect.Value, value string) error {
 	tags := strings.Split(value, ",")
 	if len(tags) > v.Cap() {
-		return ErrorArrayOutOfRange
+		return newE("array out of range, max: %d", v.Cap())
 	}
 	for i, t := range tags {
 		err := m.setFieldValue(v.Index(i), t)

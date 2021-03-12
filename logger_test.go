@@ -43,7 +43,7 @@ func TestWithLoggerLevel(t *testing.T) {
 	}
 
 	log = WithLoggerLevel(zerolog.FatalLevel)
-	if log.GetLevel() != zerolog.FatalLevel{
+	if log.GetLevel() != zerolog.FatalLevel {
 		t.Fatalf("log level should be Fatal")
 	}
 }
