@@ -46,7 +46,7 @@ func GetLogger() zerolog.Logger {
 	return log
 }
 
-// SetLoggerLevel 返回一个自定义日志等级的 log 实例
+// WithLoggerLevel 返回一个自定义日志等级的 log 实例
 func WithLoggerLevel(level zerolog.Level) zerolog.Logger {
 	if &log != nil {
 		return log.Level(level)
