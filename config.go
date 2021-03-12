@@ -1,8 +1,6 @@
-package components
+package pkg
 
 import (
-	"fmt"
-	"github.com/pkg/errors"
 	"os"
 	"reflect"
 	"strconv"
@@ -57,14 +55,14 @@ m.parse(&config) 传的是这个指向 *config 的指针，通过 reflect 可以
 func (m *mapper) Parse(dest interface{}) error {
 	v := reflect.ValueOf(dest)
 	if v.Kind() != reflect.Ptr {
-		return fmt.Errorf("parse of non-pointer %v", reflect.TypeOf(dest))
+		return ErrorNonPointer
 	}
 	if v.IsNil() {
-		return fmt.Errorf("parse of nil %s", reflect.TypeOf(dest))
+		return ErrorNilInput
 	}
 	v = behind(v)
 	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("parse of non-struct %v", v.Kind())
+		return ErrorNonStruct
 	}
 	return m.parse(v)
 }
@@ -99,7 +97,7 @@ func (m *mapper) parse(v reflect.Value) error {
 		if !data.isValid() {
 			if behind(fv).Kind() != reflect.Struct {
 				if m.strict {
-					return fmt.Errorf("missing value of %s.%s", t.String(), ft.Name)
+					return newE("missing value of %s.%s", t.String(), ft.Name)
 				}
 				continue
 			}
@@ -115,6 +113,11 @@ func (m *mapper) parse(v reflect.Value) error {
 // 如果 v 不可寻址或是不可导出字段（字段首字母小写），返回 ErrorNotWritable 错误
 // 给结构体赋值需要转换为对应类型，如果类型转换错误，返回相应的错误
 func (m *mapper) setFieldValue(v reflect.Value, value string) error {
+	// interface
+	// if v. time.TIme{
+	// 处理 time.Time
+	//	}
+
 	switch v.Kind() {
 	default:
 		return ErrorUnsupportedType(v.String())
@@ -167,7 +170,7 @@ func (m *mapper) setFieldValue(v reflect.Value, value string) error {
 func (m *mapper) setInt8(v reflect.Value, value string) error {
 	i, err := strconv.ParseInt(value, 10, 8)
 	if err != nil {
-		return errors.Wrap(err, "setInt8")
+		return wrapE("setInt8", err)
 	}
 	v.SetInt(i)
 	return nil
@@ -177,7 +180,7 @@ func (m *mapper) setInt8(v reflect.Value, value string) error {
 func (m *mapper) setInt16(v reflect.Value, value string) error {
 	i, err := strconv.ParseInt(value, 10, 16)
 	if err != nil {
-		return errors.Wrap(err, "setInt16")
+		return wrapE("setInt16", err)
 	}
 	v.SetInt(i)
 	return nil
@@ -187,7 +190,7 @@ func (m *mapper) setInt16(v reflect.Value, value string) error {
 func (m *mapper) setInt32(v reflect.Value, value string) error {
 	i, err := strconv.ParseInt(value, 10, 32)
 	if err != nil {
-		return errors.Wrap(err, "setInt32")
+		return wrapE("setInt32", err)
 	}
 	v.SetInt(i)
 	return nil
@@ -197,7 +200,7 @@ func (m *mapper) setInt32(v reflect.Value, value string) error {
 func (m *mapper) setInt64(v reflect.Value, value string) error {
 	i, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "setInt64")
+		return wrapE("setInt64", err)
 	}
 	v.SetInt(i)
 	return nil
@@ -207,7 +210,7 @@ func (m *mapper) setInt64(v reflect.Value, value string) error {
 func (m *mapper) setUint8(v reflect.Value, value string) error {
 	i, err := strconv.ParseUint(value, 10, 8)
 	if err != nil {
-		return errors.Wrap(err, "setUint8")
+		return wrapE("setUint8", err)
 	}
 	v.SetUint(i)
 	return nil
@@ -217,7 +220,7 @@ func (m *mapper) setUint8(v reflect.Value, value string) error {
 func (m *mapper) setUint16(v reflect.Value, value string) error {
 	i, err := strconv.ParseUint(value, 10, 16)
 	if err != nil {
-		return errors.Wrap(err, "setUint16")
+		return wrapE("setUint16", err)
 	}
 	v.SetUint(i)
 	return nil
@@ -227,7 +230,7 @@ func (m *mapper) setUint16(v reflect.Value, value string) error {
 func (m *mapper) setUint32(v reflect.Value, value string) error {
 	i, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
-		return errors.Wrap(err, "setUint32")
+		return wrapE("setUint32", err)
 	}
 	v.SetUint(i)
 	return nil
@@ -237,7 +240,7 @@ func (m *mapper) setUint32(v reflect.Value, value string) error {
 func (m *mapper) setUint64(v reflect.Value, value string) error {
 	i, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "setUint64")
+		return wrapE("setUint64", err)
 	}
 	v.SetUint(i)
 	return nil
@@ -247,7 +250,7 @@ func (m *mapper) setUint64(v reflect.Value, value string) error {
 func (m *mapper) setFloat32(v reflect.Value, value string) error {
 	i, err := strconv.ParseFloat(value, 32)
 	if err != nil {
-		return errors.Wrap(err, "setFloat32")
+		return wrapE("setFloat32", err)
 	}
 	v.SetFloat(i)
 	return nil
@@ -257,7 +260,7 @@ func (m *mapper) setFloat32(v reflect.Value, value string) error {
 func (m *mapper) setFloat64(v reflect.Value, value string) error {
 	i, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		return errors.Wrap(err, "setFloat64")
+		return wrapE("setFloat64", err)
 	}
 	v.SetFloat(i)
 	return nil
@@ -267,7 +270,7 @@ func (m *mapper) setFloat64(v reflect.Value, value string) error {
 func (m *mapper) setBool(v reflect.Value, value string) error {
 	i, err := strconv.ParseBool(value)
 	if err != nil {
-		return errors.Wrap(err, "setBool")
+		return wrapE("setBool", err)
 	}
 	v.SetBool(i)
 	return nil
@@ -281,7 +284,7 @@ func (m *mapper) setSlice(v reflect.Value, value string) error {
 		elem := slice.Index(i)
 		err := m.setFieldValue(elem, t)
 		if err != nil {
-			return errors.Wrap(err, "setSlice")
+			return wrapE("setSlice", err)
 		}
 	}
 	v.Set(slice)
@@ -297,7 +300,7 @@ func (m *mapper) setArray(v reflect.Value, value string) error {
 	for i, t := range tags {
 		err := m.setFieldValue(v.Index(i), t)
 		if err != nil {
-			return errors.Wrap(err, "setArray")
+			return wrapE("setArray", err)
 		}
 	}
 	return nil
@@ -331,7 +334,6 @@ func getData(field reflect.StructField) (t *data) {
 		t.skip = true
 		return
 	}
-
 	tag := field.Tag.Get(tagName)
 	// 忽略符
 	if tag == "-" {
@@ -376,7 +378,6 @@ func camelCaseToUnderscoreUpper(s string) string {
 			if unicode.IsUpper(r) {
 				output = append(output, '_')
 			}
-
 			output = append(output, r)
 		}
 	}

@@ -1,4 +1,4 @@
-module github.com/NingziSlay/components
+module github.com/NingziSlay/pkg
 
 go 1.16
 
