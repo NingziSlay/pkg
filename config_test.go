@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-
 func TestMapper_Parse(t *testing.T) {
 	type sample struct{}
 	var s sample

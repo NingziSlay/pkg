@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// DB simple wrapper of Gorm
 type DB struct {
 	driver *gorm.DB
 }
