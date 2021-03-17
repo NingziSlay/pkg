@@ -1,6 +1,7 @@
 package mq
 
 import (
+	"github.com/NingziSlay/pkg/log"
 	"github.com/rs/zerolog"
 	"github.com/streadway/amqp"
 	"sync"
@@ -39,7 +40,11 @@ type mq struct {
 }
 
 func newMq(config *Config) *mq {
-	return &mq{config: config}
+	return &mq{
+		once:   sync.Once{},
+		config: config,
+		log:    log.GetLogger(),
+	}
 }
 
 // stop 关闭 consumer
