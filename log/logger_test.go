@@ -1,4 +1,4 @@
-package pkg
+package log
 
 import (
 	"testing"
@@ -37,12 +37,12 @@ func TestGetLogger(t *testing.T) {
 }
 
 func TestWithLoggerLevel(t *testing.T) {
-	log := WithLoggerLevel(zerolog.TraceLevel)
+	log := GetLoggerWithLevel(zerolog.TraceLevel)
 	if log.GetLevel() != zerolog.TraceLevel {
 		t.Fatalf("l level should be Trace")
 	}
 
-	log = WithLoggerLevel(zerolog.FatalLevel)
+	log = GetLoggerWithLevel(zerolog.FatalLevel)
 	if log.GetLevel() != zerolog.FatalLevel {
 		t.Fatalf("l level should be Fatal")
 	}

@@ -1,7 +1,8 @@
-package pkg
+package es
 
 import (
 	"context"
+	log2 "github.com/NingziSlay/pkg/log"
 	"github.com/olivere/elastic/v7"
 )
 
@@ -21,10 +22,10 @@ func NewES(debug bool, hosts ...string) (*ES, error) {
 	opts := make([]elastic.ClientOptionFunc, 0)
 	opts = append(opts, elastic.SetURL(hosts...))
 	if debug {
-		log := WithSampleLog()
+		log := log2.GetSampleLog()
 		opts = append(opts, elastic.SetTraceLog(&log))
 	} else {
-		log := GetLogger()
+		log := log2.GetLogger()
 		opts = append(opts, elastic.SetErrorLog(&log))
 	}
 	client, err := elastic.NewClient(opts...)

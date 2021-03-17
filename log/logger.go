@@ -1,4 +1,4 @@
-package pkg
+package log
 
 import (
 	"fmt"
@@ -45,8 +45,8 @@ func GetLogger() zerolog.Logger {
 	return l
 }
 
-// WithLoggerLevel 返回一个自定义日志等级的 l 实例
-func WithLoggerLevel(level zerolog.Level) zerolog.Logger {
+// GetLoggerWithLevel 返回一个自定义日志等级的 l 实例
+func GetLoggerWithLevel(level zerolog.Level) zerolog.Logger {
 	if &l != nil {
 		return l.Level(level)
 	}
@@ -54,10 +54,10 @@ func WithLoggerLevel(level zerolog.Level) zerolog.Logger {
 	return l.Level(level)
 }
 
-// WithSampleLog 返回一个 sampling log 实例
+// GetSampleLog 返回一个 sampling log 实例
 // debug 等级每秒输出前 5 条日志，之后每 20 条输出一条
 // info 等级每秒输出前 5 条日志，之后每 10 条输出一条
-func WithSampleLog() zerolog.Logger {
+func GetSampleLog() zerolog.Logger {
 	if &l == nil {
 		InitLogger(false)
 	}

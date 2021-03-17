@@ -1,7 +1,8 @@
-package pkg
+package db
 
 import (
 	"database/sql"
+	log2 "github.com/NingziSlay/pkg/log"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -44,7 +45,7 @@ func initGormLog(debug bool) logger.Interface {
 	if !debug {
 		config.LogLevel = logger.Warn
 	}
-	return logger.New(log.New(WithSampleLog(), "", 0), config)
+	return logger.New(log.New(log2.GetSampleLog(), "", 0), config)
 }
 
 // initGormWithConn init gorm DB instance with sql.DB (for tests)
