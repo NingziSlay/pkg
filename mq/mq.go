@@ -10,10 +10,10 @@ import (
 type ExchangeKind string
 
 const (
-	ExchangeTopic    ExchangeKind = "topic"
-	ExchangeTFanout  ExchangeKind = "fanout"
-	ExchangeTDirect  ExchangeKind = "direct"
-	ExchangeTHeaders ExchangeKind = "headers"
+	ExchangeTopic    ExchangeKind = amqp.ExchangeTopic
+	ExchangeTFanout  ExchangeKind = amqp.ExchangeFanout
+	ExchangeTDirect  ExchangeKind = amqp.ExchangeDirect
+	ExchangeTHeaders ExchangeKind = amqp.ExchangeHeaders
 )
 
 type Config struct {
@@ -49,10 +49,15 @@ func newMq(config *Config) *mq {
 
 // stop 关闭 consumer
 func (q *mq) stop() {
+	if q.conn == nil {
+		return
+	}
 	if !q.conn.IsClosed() {
 		// 关闭 SubMsg message delivery
-		if err := q.channel.Cancel(q.config.ConsumerTag, true); err != nil {
-			q.log.Warn().Err(err).Msg("rabbitmq consumer - channel cancel failed")
+		if q.channel != nil {
+			if err := q.channel.Cancel(q.config.ConsumerTag, true); err != nil {
+				q.log.Warn().Err(err).Msg("rabbitmq consumer - channel cancel failed")
+			}
 		}
 
 		if err := q.conn.Close(); err != nil {

@@ -2,11 +2,11 @@ package db
 
 import (
 	"database/sql"
-	log2 "github.com/NingziSlay/pkg/log"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
+	"os"
 	"time"
 )
 
@@ -38,14 +38,14 @@ func NewDBWithMockForTest(debug bool, conn *sql.DB) (*DB, error) {
 
 func initGormLog(debug bool) logger.Interface {
 	var config = logger.Config{
-		SlowThreshold: time.Second * 1,
-		Colorful:      false,
+		SlowThreshold: time.Second * 2,
+		Colorful:      true,
 		LogLevel:      logger.Info,
 	}
 	if !debug {
 		config.LogLevel = logger.Warn
 	}
-	return logger.New(log.New(log2.GetSampleLog(), "", 0), config)
+	return logger.New(log.New(os.Stdout, "", 0), config)
 }
 
 // initGormWithConn init gorm DB instance with sql.DB (for tests)
