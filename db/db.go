@@ -89,3 +89,7 @@ func (db *DB) ScanRows(rows *sql.Rows, dest interface{}) error {
 func (db *DB) Exec(sql string, args ...interface{}) error {
 	return db.driver.Exec(sql, args...).Error
 }
+
+func (db *DB) BlockLogger() {
+	db.driver.Logger.LogMode(logger.Silent)
+}

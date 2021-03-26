@@ -14,10 +14,14 @@ type Producer struct {
 	*mq
 }
 
-func NewMqProducer(config *Config) RabbitMqProducer {
-	return &Producer{
-		newMq(config),
+func NewMqProducer(config *Config) (RabbitMqProducer, error) {
+	mq := newMq(config)
+	if err := mq.init(); err != nil {
+		return nil, err
 	}
+	return &Producer{
+		mq: mq,
+	}, nil
 }
 
 func (producer *Producer) Destroy() {
@@ -25,9 +29,6 @@ func (producer *Producer) Destroy() {
 }
 
 func (producer *Producer) Publish(msg interface{}) (err error) {
-	if err = producer.mq.init(); err != nil {
-		return
-	}
 
 	body, err := json.Marshal(msg)
 	if err != nil {
